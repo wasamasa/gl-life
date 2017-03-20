@@ -1,4 +1,4 @@
-(use srfi-4 lolevel
+(use srfi-4 lolevel random-bsd srfi-18
      (prefix opengl-glew gl:)
      (prefix glfw3 glfw:)
      (prefix gl-utils glu:))
@@ -6,13 +6,15 @@
 (define width 500)
 (define height 500)
 
-(define rows 10)
-(define columns 10)
+(define rows 20)
+(define columns 20)
 
-(define-record cell x y vao)
+(define-record cell mesh live? live?-next)
 
 (define (cell-vertices x y)
-  (define (->normalize n) (- (* n 2) 1))
+  ;; convert coordinates from 0..1 to -1..1
+  (define (->normalize n)
+    (- (* n 2) 1))
   (let ((x1 (->normalize (/ x columns)))
         (x2 (->normalize (/ (+ x 1) columns)))
         (y1 (->normalize (/ y rows)))
@@ -25,7 +27,7 @@
           x2 y1 0
           x2 y2 0)))
 
-(define (create-cell prog x y)
+(define (create-cell prog x y live?)
   (let ((mesh
          (glu:make-mesh
           vertices:
@@ -33,7 +35,9 @@
             initial-elements: ((position . ,(cell-vertices x y)))))))
     (glu:mesh-make-vao! mesh `((position . ,(gl:get-attrib-location
                                              prog "position"))))
-    (make-cell x y (glu:mesh-vao mesh))))
+    (make-cell mesh live? live?)))
+
+(define treshold 0.15)
 
 (define (create-board prog)
   (let ((board (make-vector (* rows columns))))
@@ -41,8 +45,8 @@
         ((= row rows))
       (do ((column 0 (add1 column)))
           ((= column columns))
-        (vector-set! board (+ (* row columns) column)
-                     (create-cell prog column row))))
+        (let ((cell (create-cell prog column row (< (random-real) treshold))))
+          (vector-set! board (+ (* row columns) column) cell))))
     board))
 
 (define square-vertices 6) ; ugh
@@ -68,6 +72,39 @@
                                           fragment-shader-source)))
     (glu:make-program (list vertex-shader fragment-shader))))
 
+(define (update-cell! cell board x y)
+  (cell-live?-set! cell (cell-live?-next cell))
+  (let ((neighbors (live-neighbors cell board x y)))
+    (if (cell-live? cell)
+        (cond
+         ((< neighbors 2)
+          (cell-live?-next-set! cell #f))
+         ((or (= neighbors 2) (= neighbors 3))
+          (cell-live?-next-set! cell #t))
+         ((> neighbors 3)
+          (cell-live?-next-set! cell #f)))
+        (if (= neighbors 3)
+            (cell-live?-next-set! cell #t)))))
+
+(define (live-neighbors cell board x y)
+  (define (live? x y)
+    (cond
+     ((= x columns) (live? 0 y))
+     ((< x 0) (live? (- columns 1) y))
+     ((= y rows) (live? x 0))
+     ((< y 0) (live? x (- rows 1)))
+     (else
+      (cell-live? (vector-ref board (+ (* y columns) x))))))
+  (+ (if (live? (- x 1) y) 1 0) ; left
+     (if (live? (+ x 1) y) 1 0) ; right
+     (if (live? x (+ y 1)) 1 0) ; up
+     (if (live? x (- y 1)) 1 0) ; down
+     (if (live? (- x 1) (+ y 1)) 1 0) ; top-left
+     (if (live? (+ x 1) (+ y 1)) 1 0) ; top-right
+     (if (live? (- x 1) (- y 1)) 1 0) ; bottom-left
+     (if (live? (+ x 1) (- y 1)) 1 0) ; bottom-right
+     ))
+
 (define (draw! board window prog)
   (gl:clear (bitwise-ior gl:+color-buffer-bit+ gl:+depth-buffer-bit+))
   (gl:use-program prog)
@@ -76,12 +113,15 @@
       ((= row rows))
     (do ((column 0 (add1 column)))
         ((= column columns))
-      (let ((vao (cell-vao (vector-ref board (+ (* row columns) column)))))
-        (gl:bind-vertex-array vao)
-        (gl:draw-arrays gl:+triangles+ 0 square-vertices))))
+      (let ((cell (vector-ref board (+ (* row columns) column))))
+        (when (cell-live? cell)
+          (gl:bind-vertex-array (glu:mesh-vao (cell-mesh cell)))
+          (gl:draw-arrays gl:+triangles+ 0 square-vertices)))))
 
   (glfw:poll-events)
   (glfw:swap-buffers window))
+
+(define fps 10)
 
 (define (main)
   (glfw:with-window (width height "Game of Life"
@@ -94,7 +134,17 @@
              (board (create-board prog)))
         (let loop ()
           (when (not (glfw:window-should-close window))
-            (draw! board window prog)
+            (let ((now (current-milliseconds)))
+              (do ((row 0 (add1 row)))
+                  ((= row rows))
+                (do ((column 0 (add1 column)))
+                    ((= column columns))
+                  (let ((cell (vector-ref board (+ (* row columns) column))))
+                    (update-cell! cell board column row))))
+              (draw! board window prog)
+              (gc)
+              (thread-sleep! (/ (- (/ 1000 fps) (- (current-milliseconds) now))
+                                1000)))
             (loop)))))))
 
 (main)
