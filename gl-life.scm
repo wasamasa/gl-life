@@ -1,4 +1,4 @@
-(use srfi-4 lolevel random-bsd srfi-18
+(use random-bsd srfi-18
      (prefix opengl-glew gl:)
      (prefix glfw3 glfw:)
      (prefix gl-utils glu:))
