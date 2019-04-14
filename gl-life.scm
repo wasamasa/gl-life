@@ -1,7 +1,9 @@
-(use random-bsd srfi-18
-     (prefix opengl-glew gl:)
-     (prefix glfw3 glfw:)
-     (prefix gl-utils glu:))
+(import scheme)
+(import (chicken base))
+(import (srfi 18))
+(import (prefix epoxy gl:))
+(import (prefix glfw3 glfw:))
+(import (prefix gl-utils glu:))
 
 (define width 500)
 (define height 500)
@@ -127,7 +129,7 @@
   (glfw:with-window (width height "Game of Life"
                      resizable: #f
                      context-version-major: 2
-                     context-version-minor: 1)
+                     context-version-minor: 0)
     (let ((window (glfw:window)))
       (glfw:make-context-current window)
       (let* ((prog (init-gl!))
@@ -142,7 +144,6 @@
                   (let ((cell (vector-ref board (+ (* row columns) column))))
                     (update-cell! cell board column row))))
               (draw! board window prog)
-              (gc)
               (thread-sleep! (/ (- (/ 1000 fps) (- (current-milliseconds) now))
                                 1000)))
             (loop)))))))

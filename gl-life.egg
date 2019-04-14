@@ -1,0 +1,6 @@
+((synopsis "Game of Life")
+ (author "Vasilij Schneidermann")
+ (license "BSD")
+ (dependencies srfi-18 epoxy glfw3 gl-utils)
+ (components (csc-options "-m" "program")
+             (program gl-life)))
