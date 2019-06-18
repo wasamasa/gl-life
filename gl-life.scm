@@ -1,5 +1,8 @@
 (import scheme)
 (import (chicken base))
+(import (chicken bitwise))
+(import (chicken random))
+(import (chicken time))
 (import (srfi 18))
 (import (prefix epoxy gl:))
 (import (prefix glfw3 glfw:))
@@ -16,7 +19,7 @@
 (define (cell-vertices x y)
   ;; convert coordinates from 0..1 to -1..1
   (define (->normalize n)
-    (- (* n 2) 1))
+    (exact->inexact (- (* n 2) 1)))
   (let ((x1 (->normalize (/ x columns)))
         (x2 (->normalize (/ (+ x 1) columns)))
         (y1 (->normalize (/ y rows)))
@@ -39,7 +42,7 @@
                                              prog "position"))))
     (make-cell mesh live? live?)))
 
-(define treshold 0.15)
+(define threshold 0.15)
 
 (define (create-board prog)
   (let ((board (make-vector (* rows columns))))
@@ -47,7 +50,8 @@
         ((= row rows))
       (do ((column 0 (add1 column)))
           ((= column columns))
-        (let ((cell (create-cell prog column row (< (random-real) treshold))))
+        (let ((cell (create-cell prog column row (< (pseudo-random-real)
+                                                    threshold))))
           (vector-set! board (+ (* row columns) column) cell))))
     board))
 
@@ -67,7 +71,6 @@
    }")
 
 (define (init-gl!)
-  (gl:init)
   (let ((vertex-shader (glu:make-shader gl:+vertex-shader+
                                         vertex-shader-source))
         (fragment-shader (glu:make-shader gl:+fragment-shader+

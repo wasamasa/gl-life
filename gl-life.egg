@@ -2,5 +2,5 @@
  (author "Vasilij Schneidermann")
  (license "BSD")
  (dependencies srfi-18 epoxy glfw3 gl-utils)
- (components (csc-options "-m" "program")
-             (program gl-life)))
+ (component-options (csc-options "-m" "program"))
+ (components (program gl-life)))
